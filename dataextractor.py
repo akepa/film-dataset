@@ -1,22 +1,26 @@
 import urllib.request
 import urllib.robotparser
 
+from bs4 import BeautifulSoup
+
 base_url = "https://www.filmaffinity.com/"
+
+default_user_agent = "Python-urllib/3.7"
+
+# Process robots.txt
+rp = urllib.robotparser.RobotFileParser()
+rp.set_url(base_url + "robots.txt")
+rp.read()
 
 
 def main():
     print("Start.")
-    default_user_agent = "Python-urllib/3.7"
-
-    # Process robots.txt
-    rp = urllib.robotparser.RobotFileParser()
-    rp.set_url(base_url + "robots.txt")
-    rp.read()
 
     cache = {}
 
-    award_ids = get_award_ids()
-    for award_id in award_ids:
+    awards = get_awards()
+    print("Extracted " + str(len(awards)) + " items")
+    for award_id, award_name in awards.items():
         main_category_id = get_main_category_id(award_id)
         winner_dict = get_main_category_winners(award_id, main_category_id)
         for year, movie_id in winner_dict.items():
@@ -26,12 +30,12 @@ def main():
                 movie_data = get_movie_data(movie_id)
                 cache[movie_id] = movie_data
             store(award_id, main_category_id, year, movie_data)
+        break
 
 
 def download(url):
-    response = urllib.request.urlopen(url)
-    data = response.read().decode('utf-8')
-    return data
+    with urllib.request.urlopen(url) as response:
+        return response.read().decode('utf-8')
 
 
 def get_main_category_id(festival_id):
@@ -43,18 +47,27 @@ def get_main_category_id(festival_id):
             return main_award_id
 
 
-def get_award_ids():
+def get_awards():
+    awards = {}
+
     next_url = base_url + "es/all_awards.php?order=all"
     print(next_url)
-    data = download(next_url)
-    a = ["goya"]
-    return a
+    soup = BeautifulSoup(download(next_url), 'html.parser')
+
+    all_awards_list = soup.find('div', {"class": "all-awards-list"})
+    for a in all_awards_list.findAll('a'):
+        if a.has_attr('title'):
+            link = a.get('href')
+            award_id = link.split("award_id=")[1]
+            award_name = a.get('title')
+            awards[award_id] = award_name
+    # print (awards)
+    return awards
 
 
 def get_award_years(festival_id):
     next_url = base_url + "es/award_data.php?award_id=" + festival_id
     print(next_url)
-    data = download(next_url)
     a = [2018]
     return a
 
