@@ -34,12 +34,14 @@ def main():
 
 
 def download(url):
+    print(url)
     with urllib.request.urlopen(url) as response:
         return response.read().decode('utf-8')
 
 
 def get_main_category_id(festival_id):
     years = get_award_years(festival_id)
+    # print(years)
     for year in years:
         # Iterating over years, as for some year there may be no data defined.
         main_award_id = find_main_award_id(festival_id, year)
@@ -51,7 +53,6 @@ def get_awards():
     awards = {}
 
     next_url = base_url + "es/all_awards.php?order=all"
-    print(next_url)
     soup = BeautifulSoup(download(next_url), 'html.parser')
 
     all_awards_list = soup.find('div', {"class": "all-awards-list"})
@@ -66,10 +67,18 @@ def get_awards():
 
 
 def get_award_years(festival_id):
+    years = []
+
     next_url = base_url + "es/award_data.php?award_id=" + festival_id
-    print(next_url)
-    a = [2018]
-    return a
+    soup = BeautifulSoup(download(next_url), 'html.parser')
+    all_winners = soup.find('table', {"id": "all-winners"})
+    for a in all_winners.findAll('a'):
+        link = a.get('href')
+        if "year" in link:
+            year = link.split("year=")[1]
+            years.append(year)
+
+    return years
 
 
 def find_main_award_id(festival_id, year):
