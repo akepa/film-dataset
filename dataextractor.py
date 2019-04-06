@@ -23,6 +23,7 @@ def main():
     for award_id, award_name in awards.items():
         main_category_id = get_main_category_id(award_id)
         winner_dict = get_main_category_winners(award_id, main_category_id)
+        print(winner_dict)
         for year, movie_id in winner_dict.items():
             if movie_id in cache:
                 movie_data = cache[movie_id]
@@ -30,7 +31,6 @@ def main():
                 movie_data = get_movie_data(movie_id)
                 cache[movie_id] = movie_data
             store(award_id, main_category_id, year, movie_data)
-        break
 
 
 def download(url):
@@ -82,18 +82,39 @@ def get_award_years(festival_id):
 
 
 def find_main_award_id(festival_id, year):
-    next_url = base_url + "es/awards.php?award_id=" + festival_id + "&year=" + str(year)
-    print(next_url)
-    data = download(next_url)
-    return "best_picture"
+    try:
+        next_url = base_url + "es/awards.php?award_id=" + festival_id + "&year=" + str(year)
+        soup = BeautifulSoup(download(next_url), 'html.parser')
+        div = soup.find('div', {"class": "vwacat"})
+        a = div.find('a')
+        link = a.get('href')
+        cat_id = link.split("cat_id=")[1]
+        return cat_id
+    except:
+        # May be blank page
+        return None
 
 
 def get_main_category_winners(festival_id, main_award_id):
+    winners = {}
+
     next_url = base_url + "es/awards-history.php?award_id=" + festival_id + "&cat_id=" + main_award_id
-    print(next_url)
-    data = download(next_url)
-    a = {2019: "film206800", 2018: "film114695"}
-    return a
+
+    soup = BeautifulSoup(download(next_url), 'html.parser')
+    awards_history = soup.find('div', {"class": "awards-history"})
+    if awards_history is not None:
+        fa_shadows = awards_history.findAll('li', {"class": "fa-shadow"})
+        for fa_shadow in fa_shadows:
+            year_div = fa_shadow.find('div', {"class": "year"})
+            if year_div is not None:
+                year = year_div.find('a').text
+                movie_title_tag = fa_shadow.find('a', {"class": "movie-title-link"})
+                if movie_title_tag is not None:
+                    link = movie_title_tag.get('href')
+                    movie_id = link.replace(base_url, "").replace("/es/","").replace(".html", "")
+                    winners[year] = movie_id
+
+    return winners
 
 
 def get_movie_data(movie_id):
