@@ -1,6 +1,9 @@
 import urllib.request
+import urllib.parse
 import urllib.robotparser
 import csv
+import unidecode
+
 from bs4 import BeautifulSoup
 
 base_url = "https://www.filmaffinity.com/"
@@ -28,20 +31,21 @@ def main():
         print("Extracted " + str(len(awards)) + " items")
         for award_id, award_name in awards.items():
             main_category_id = get_main_category_id(award_id)
-            winner_dict = get_main_category_winners(award_id, main_category_id)
-            # print(winner_dict)
-            for year, movie_id in winner_dict.items():
+            if main_category_id is not None:
+                winner_dict = get_main_category_winners(award_id, main_category_id)
+                # print(winner_dict)
+                for year, movie_id in winner_dict.items():
 
-                movie = None
-                if movie_id in cache:
-                    movie = cache[movie_id]
-                else:
-                    movie = get_movie_data(movie_id)
-                    cache[movie_id] = movie
-                movie['award'] = award_name
-                movie['award_year'] = year
-                writer.writerow(movie)
-                break
+                    movie = None
+                    if movie_id in cache:
+                        movie = cache[movie_id]
+                    else:
+                        movie = get_movie_data(movie_id)
+                        cache[movie_id] = movie
+                    movie['award'] = award_name
+                    movie['award_year'] = year
+                    writer.writerow(movie)
+                    break
 
 
 def download(url):
@@ -57,7 +61,7 @@ def get_main_category_id(festival_id):
         # Iterating over years, as for some year there may be no data defined.
         main_award_id = find_main_award_id(festival_id, year)
         if main_award_id is not None:
-            return main_award_id
+            return unidecode.unidecode(main_award_id)
 
 
 def get_awards():
@@ -141,12 +145,24 @@ def get_movie_data(movie_id):
     movie['title'] = items[0].text.strip()
     movie['year'] = items[1].text.strip()
     movie['country'] = items[3].text.strip()
-    movie['director'] = items[4].text.strip()
 
-    movie['score'] = soup.find('div', {'id': 'movie-rat-avg'}).text.strip().replace(',', '.')
-    movie['nvotes'] = soup.find('span', {'itemprop': 'ratingCount'}).text.strip().replace('.', '')
+    movie['director'] = get_directors(items[4])
+
+    score_field = soup.find('div', {'id': 'movie-rat-avg'})
+    votes_field = soup.find('span', {'itemprop': 'ratingCount'})
+
+    movie['score'] = score_field.text.strip().replace(',', '.') if score_field is not None else None
+    movie['nvotes'] = votes_field.text.strip().replace('.', '') if votes_field is not None else None
 
     return movie
+
+
+def get_directors(directors_field):
+    director = ""
+    directors = directors_field.findAll('span', {'itemprop': 'name'})
+    for d in directors:
+        director = director + d.text.strip() + ", "
+    return director[:-2]
 
 
 if __name__ == "__main__":
