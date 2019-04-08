@@ -25,14 +25,15 @@ def main():
 
     with open('film-awards-dataset.csv', 'w', newline='', encoding='utf-8') as film_file:
 
-        fieldnames = ['award_name', 'award_type', 'award_year', 'film_title', 'film_year', 'film_director',
+        fieldnames = ['award_name', 'award_type', 'award_country', 'award_year', 'film_title', 'film_year',
+                      'film_director',
                       'film_country', 'score', 'nvotes']
         writer = csv.DictWriter(film_file, fieldnames, delimiter=';')
         writer.writeheader()
 
         award_list = get_awards()
         for award_type, awards in award_list.items():
-            for award_id, award_name in awards.items():
+            for award_id, award_data in awards.items():
                 main_category_id = get_main_category_id(award_id)
                 if main_category_id is not None:
                     winner_dict = get_main_category_winners(award_id, main_category_id)
@@ -48,7 +49,8 @@ def main():
                         if "TV Series" in movie['film_title']:
                             # Stop processing if it is a TV serie
                             break
-                        movie['award_name'] = award_name
+                        movie['award_name'] = award_data['award_name']
+                        movie['award_country'] = award_data['award_country']
                         movie['award_type'] = award_type
                         movie['award_year'] = year
                         writer.writerow(movie)
@@ -84,19 +86,21 @@ def get_awards():
     award_content = all_awards_list.findAll('div', {'class': 'award-by-type-content'})
 
     awards['Festival'] = get_awards_from_list(award_content[0])
-    awards['Award'] = get_awards_from_list(award_content[1])
-    awards['Association Award'] = get_awards_from_list(award_content[2])
+    awards['Premio'] = get_awards_from_list(award_content[1])
+    awards['Premio asociacion de criticos'] = get_awards_from_list(award_content[2])
     # print (awards)
     return awards
 
 
 def get_awards_from_list(award_list):
     awards = {}
-    for a in award_list.findAll('a'):
+    for container in award_list.findAll('div', {'class': 'award-container'}):
+        country = container.find('img')['title'] if container.find('img') is not None else None
+        a = container.find('a')
         link = a.get('href')
         award_id = link.split("award_id=")[1]
         award_name = a.text
-        awards[award_id] = award_name
+        awards[award_id] = {"award_name": award_name, "award_country": country}
     return awards
 
 
