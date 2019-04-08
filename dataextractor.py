@@ -15,7 +15,8 @@ rp = urllib.robotparser.RobotFileParser()
 rp.set_url(base_url + "robots.txt")
 rp.read()
 
-
+# TODO - PREMIO Y FESTIVALES
+# TODO - GENERO
 def main():
     print("Start.")
 
@@ -42,6 +43,9 @@ def main():
                     else:
                         movie = get_movie_data(movie_id)
                         cache[movie_id] = movie
+                    if "TV Series" in movie['title']:
+                        # Stop processing if it is a TV serie
+                        break
                     movie['award'] = award_name
                     movie['award_year'] = year
                     writer.writerow(movie)
@@ -50,8 +54,11 @@ def main():
 
 def download(url):
     print(url)
-    with urllib.request.urlopen(url) as response:
-        return response.read().decode('utf-8')
+    if rp.can_fetch(default_user_agent, url):
+        with urllib.request.urlopen(url) as response:
+            return response.read().decode('utf-8')
+    else:
+        print(url + " restricted by robots.txt")
 
 
 def get_main_category_id(festival_id):
