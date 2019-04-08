@@ -1,6 +1,6 @@
 import urllib.request
 import urllib.robotparser
-
+import csv
 from bs4 import BeautifulSoup
 
 base_url = "https://www.filmaffinity.com/"
@@ -18,19 +18,30 @@ def main():
 
     cache = {}
 
-    awards = get_awards()
-    print("Extracted " + str(len(awards)) + " items")
-    for award_id, award_name in awards.items():
-        main_category_id = get_main_category_id(award_id)
-        winner_dict = get_main_category_winners(award_id, main_category_id)
-        print(winner_dict)
-        for year, movie_id in winner_dict.items():
-            if movie_id in cache:
-                movie_data = cache[movie_id]
-            else:
-                movie_data = get_movie_data(movie_id)
-                cache[movie_id] = movie_data
-            store(award_id, main_category_id, year, movie_data)
+    with open('film-awards-dataset.csv', 'w', newline='', encoding='utf-8') as film_file:
+
+        fieldnames = ['award', 'award_year', 'title', 'year', 'director', 'country', 'score', 'nvotes']
+        writer = csv.DictWriter(film_file, fieldnames, delimiter=';')
+        writer.writeheader()
+
+        awards = get_awards()
+        print("Extracted " + str(len(awards)) + " items")
+        for award_id, award_name in awards.items():
+            main_category_id = get_main_category_id(award_id)
+            winner_dict = get_main_category_winners(award_id, main_category_id)
+            # print(winner_dict)
+            for year, movie_id in winner_dict.items():
+
+                movie = None
+                if movie_id in cache:
+                    movie = cache[movie_id]
+                else:
+                    movie = get_movie_data(movie_id)
+                    cache[movie_id] = movie
+                movie['award'] = award_name
+                movie['award_year'] = year
+                writer.writerow(movie)
+                break
 
 
 def download(url):
@@ -111,32 +122,31 @@ def get_main_category_winners(festival_id, main_award_id):
                 movie_title_tag = fa_shadow.find('a', {"class": "movie-title-link"})
                 if movie_title_tag is not None:
                     link = movie_title_tag.get('href')
-                    movie_id = link.replace(base_url, "").replace("/es/","").replace(".html", "")
+                    movie_id = link.replace(base_url, "").replace("/es/", "").replace(".html", "")
                     winners[year] = movie_id
 
     return winners
 
 
 def get_movie_data(movie_id):
+    movie = {}
+
     next_url = base_url + "es/" + movie_id + ".html"
     print(next_url)
-    data = download(next_url)
-    a = Movie("title", 2000, "director", "country", 4.5, 12312)
-    return a
+    soup = BeautifulSoup(download(next_url), 'html.parser')
 
+    movie_info = soup.find('dl', {"class": "movie-info"})
+    items = movie_info.findAll('dd')
 
-def store(festival_id, main_award_id, year, movie_data):
-    pass
+    movie['title'] = items[0].text.strip()
+    movie['year'] = items[1].text.strip()
+    movie['country'] = items[3].text.strip()
+    movie['director'] = items[4].text.strip()
 
+    movie['score'] = soup.find('div', {'id': 'movie-rat-avg'}).text.strip().replace(',', '.')
+    movie['nvotes'] = soup.find('span', {'itemprop': 'ratingCount'}).text.strip().replace('.', '')
 
-class Movie:
-    def __init__(self, title, year, director, country, score, n_votes):
-        self.title = title
-        self.year = year
-        self.director = director
-        self.country = country
-        self.score = score
-        self.n_votes = n_votes
+    return movie
 
 
 if __name__ == "__main__":
