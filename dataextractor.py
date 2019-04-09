@@ -3,6 +3,7 @@ import urllib.parse
 import urllib.robotparser
 import csv
 import unidecode
+from urllib.error import HTTPError
 
 from bs4 import BeautifulSoup
 
@@ -16,8 +17,6 @@ rp.set_url(base_url + "robots.txt")
 rp.read()
 
 
-# TODO - PAIS FESTIVAL
-# TODO - GENERO
 def main():
     print("Start.")
 
@@ -27,7 +26,7 @@ def main():
 
         fieldnames = ['award_name', 'award_type', 'award_country', 'award_year', 'film_title', 'film_year',
                       'film_director',
-                      'film_country', 'score', 'nvotes']
+                      'film_country', 'film_main_genre', 'score', 'nvotes']
         writer = csv.DictWriter(film_file, fieldnames, delimiter=';')
         writer.writeheader()
 
@@ -54,17 +53,20 @@ def main():
                         movie['award_type'] = award_type
                         movie['award_year'] = year
                         writer.writerow(movie)
-                        break
 
 
 def download(url):
     print(url)
-    if rp.can_fetch(default_user_agent, url):
+    try:
+        if rp.can_fetch(default_user_agent, url):
+            with urllib.request.urlopen(url) as response:
+                return response.read().decode('utf-8')
+        else:
+            print(url + " restricted by robots.txt")
+    except HTTPError as e:
+        input("Solve captcha manually and press Enter to continue...")
         with urllib.request.urlopen(url) as response:
             return response.read().decode('utf-8')
-    else:
-        print(url + " restricted by robots.txt")
-
 
 def get_main_category_id(festival_id):
     years = get_award_years(festival_id)
@@ -159,17 +161,29 @@ def get_movie_data(movie_id):
     movie = {}
 
     next_url = base_url + "es/" + movie_id + ".html"
-    print(next_url)
     soup = BeautifulSoup(download(next_url), 'html.parser')
 
     movie_info = soup.find('dl', {"class": "movie-info"})
-    items = movie_info.findAll('dd')
 
-    movie['film_title'] = items[0].text.strip()
-    movie['film_year'] = items[1].text.strip()
-    movie['film_country'] = items[3].text.strip()
+    dt_list = movie_info.findAll('dt')
+    dd_list = movie_info.findAll('dd')
 
-    movie['film_director'] = get_directors(items[4])
+    for idx, field in enumerate(dt_list):
+        txt = field.text
+        if txt is not None:
+            txt = unidecode.unidecode(txt)
+            if 'Titulo original' == txt:
+                movie['film_title'] = dd_list[idx].text.strip()
+            elif 'AKA' == txt:
+                movie['film_title'] = movie['film_title'][:-3]
+            elif 'Ano' == txt:
+                movie['film_year'] = dd_list[idx].text.strip()
+            elif 'Pais' == txt:
+                movie['film_country'] = dd_list[idx].text.strip()
+            elif 'Direccion' == txt:
+                movie['film_director'] = get_directors(dd_list[idx])
+            elif 'Genero' == txt:
+                movie['film_main_genre'] = get_main_genre(dd_list[idx])
 
     score_field = soup.find('div', {'id': 'movie-rat-avg'})
     votes_field = soup.find('span', {'itemprop': 'ratingCount'})
@@ -186,6 +200,15 @@ def get_directors(directors_field):
     for d in directors:
         director = director + d.text.strip() + ", "
     return director[:-2]
+
+
+def get_main_genre(genres_field):
+    genre_span = genres_field.find('span', {'itemprop': 'genre'})
+    if genre_span is not None:
+        a = genre_span.find('a')
+        if a is not None:
+            return genre_span.find('a').text.strip()
+    return None
 
 
 if __name__ == "__main__":
