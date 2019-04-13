@@ -27,7 +27,7 @@ def main():
         fieldnames = ['award_name', 'award_type', 'award_country', 'award_year', 'film_title', 'film_year',
                       'film_director',
                       'film_country', 'film_main_genre', 'score', 'nvotes']
-        writer = csv.DictWriter(film_file, fieldnames, delimiter=';')
+        writer = csv.DictWriter(film_file, fieldnames, delimiter=';', quoting = csv.QUOTE_NONNUMERIC)
         writer.writeheader()
 
         award_list = get_awards()
